@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -21,6 +22,29 @@ type constantExtension struct {
 type ParsedConstant struct {
 	Name    string
 	Details resourcemanager.ConstantDetails
+}
+
+type constKeyValue map[string][]string
+
+func (c constKeyValue) add(key, value string) {
+	c[key] = append(c[key], value)
+}
+
+func (c constKeyValue) generate() map[string]string {
+	res := make(map[string]string, 0)
+	for key, value := range c {
+		if len(value) == 1 {
+			res[key] = value[0]
+			continue
+		}
+		// if multiple value (of a different case) of the same key exists, rename the key with the value
+		sort.Strings(value)
+		for _, v := range value {
+			newKey := fmt.Sprintf("%s_%s", key, cleanup.RemoveInvalidCharacters(v, false))
+			res[newKey] = v
+		}
+	}
+	return res
 }
 
 func MapConstant(typeVal spec.StringOrArray, fieldName string, values []interface{}, extensions spec.Extensions, logger hclog.Logger) (*ParsedConstant, error) {
@@ -51,6 +75,7 @@ func MapConstant(typeVal spec.StringOrArray, fieldName string, values []interfac
 	}
 
 	keysAndValues := make(map[string]string)
+	kvs := make(constKeyValue)
 	for i, raw := range values {
 		if constantType == resourcemanager.StringConstant {
 			value, ok := raw.(string)
@@ -62,6 +87,7 @@ func MapConstant(typeVal spec.StringOrArray, fieldName string, values []interfac
 				if strings.Contains(value, ".") {
 					normalizedName := normalizeConstantKey(value)
 					keysAndValues[normalizedName] = value
+					kvs.add(normalizedName, value)
 					continue
 				}
 
@@ -69,10 +95,12 @@ func MapConstant(typeVal spec.StringOrArray, fieldName string, values []interfac
 				val := fmt.Sprintf("%d", int64(numVal))
 				normalizedName := normalizeConstantKey(key)
 				keysAndValues[normalizedName] = val
+				kvs.add(normalizedName, value)
 				continue
 			}
 			normalizedName := normalizeConstantKey(value)
 			keysAndValues[normalizedName] = value
+			kvs.add(normalizedName, value)
 			continue
 		}
 
@@ -99,6 +127,7 @@ func MapConstant(typeVal spec.StringOrArray, fieldName string, values []interfac
 			val := fmt.Sprintf("%d", int64(value))
 			normalizedName := normalizeConstantKey(key)
 			keysAndValues[normalizedName] = val
+			kvs.add(normalizedName, val)
 			continue
 		}
 
@@ -112,6 +141,7 @@ func MapConstant(typeVal spec.StringOrArray, fieldName string, values []interfac
 			val := stringValueForFloat(value)
 			normalizedName := normalizeConstantKey(key)
 			keysAndValues[normalizedName] = val
+			kvs.add(normalizedName, val)
 			continue
 		}
 
@@ -123,6 +153,7 @@ func MapConstant(typeVal spec.StringOrArray, fieldName string, values []interfac
 		constantType = resourcemanager.StringConstant
 	}
 
+	keysAndValues = kvs.generate()
 	return &ParsedConstant{
 		Name: constantName,
 		Details: resourcemanager.ConstantDetails{

@@ -137,16 +137,26 @@ func (t constantTemplater) parseFunction() (*string, error) {
 
 	if t.details.Type == resourcemanager.FloatConstant || t.details.Type == resourcemanager.IntegerConstant {
 		mapLines := make([]string, 0)
+		keys := map[string]bool{}
 		for _, constantKey := range valueKeys {
 			constantValue := t.details.Values[constantKey]
+			lowerKey := strings.ToLower(constantValue)
+			// if exists key conflict, then do not set a map for this constant value
+			if keys[lowerKey] {
+				mapLines = []string{}
+				break
+			}
+
+			keys[lowerKey] = true
 			// whilst the key may look weird here, constantValue is a string containing the formatted int/float value
 			// as such we output that raw without any parsing/formatting
 			mapLines = append(mapLines, fmt.Sprintf("%s: %s%s,", strings.ToLower(constantValue), t.name, constantKey))
 		}
 		typeName := t.mapToGoType()
 
-		out := fmt.Sprintf(`
-func parse%[1]s(input %[3]s) (*%[1]s, error) {
+		mapCode := ""
+		if len(mapLines) > 0 {
+			mapCode = fmt.Sprintf(`
 	vals := map[%[3]s]%[1]s{
 		%[2]s
 	}
@@ -155,10 +165,16 @@ func parse%[1]s(input %[3]s) (*%[1]s, error) {
 	}
 
 	// otherwise presume it's an undefined value and best-effort it
+`, t.name, strings.Join(mapLines, "\n"), typeName)
+		}
+
+		out := fmt.Sprintf(`
+func parse%[1]s(input %[3]s) (*%[1]s, error) {
+%[2]s
 	out := %[1]s(input)
 	return &out, nil
 }
-`, t.name, strings.Join(mapLines, "\n"), typeName)
+`, t.name, mapCode, typeName)
 		return &out, nil
 	}
 
@@ -167,12 +183,23 @@ func parse%[1]s(input %[3]s) (*%[1]s, error) {
 	}
 
 	mapLines := make([]string, 0)
+	keys := map[string]bool{}
 	for _, constantKey := range valueKeys {
 		constantValue := t.details.Values[constantKey]
+		lowerKey := strings.ToLower(constantValue)
+		// if exists key conflict, then do not set a map for this constant value
+		if keys[lowerKey] {
+			mapLines = []string{}
+			break
+		}
+
+		keys[lowerKey] = true
 		mapLines = append(mapLines, fmt.Sprintf("%q: %s%s,", strings.ToLower(constantValue), t.name, constantKey))
 	}
-	out := fmt.Sprintf(`
-func parse%[1]s(input string) (*%[1]s, error) {
+
+	mapCode := ""
+	if len(mapLines) > 0 {
+		mapCode = fmt.Sprintf(`
 	vals := map[string]%[1]s{
 		%[2]s
 	}
@@ -181,10 +208,16 @@ func parse%[1]s(input string) (*%[1]s, error) {
 	}
 
 	// otherwise presume it's an undefined value and best-effort it
+`, t.name, strings.Join(mapLines, "\n"))
+	}
+
+	out := fmt.Sprintf(`
+func parse%[1]s(input string) (*%[1]s, error) {
+%s
 	out := %[1]s(input)
 	return &out, nil
 }
-`, t.name, strings.Join(mapLines, "\n"))
+`, t.name, mapCode)
 	return &out, nil
 }
 
