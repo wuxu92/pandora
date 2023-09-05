@@ -14,8 +14,27 @@ import (
 	"github.com/hashicorp/pandora/tools/sdk/resourcemanager"
 )
 
+type constantExtensionValue struct {
+	name        string
+	value       string
+	description string
+}
+
 type constantExtension struct {
-	name string
+	name   string
+	values []constantExtensionValue // map from value to enum name
+}
+
+func (c *constantExtension) findName(value string) string {
+	if c == nil || len(c.values) == 0 {
+		return ""
+	}
+	for _, v := range c.values {
+		if v.value == value {
+			return v.name
+		}
+	}
+	return ""
 }
 
 type ParsedConstant struct {
@@ -57,6 +76,10 @@ func MapConstant(typeVal spec.StringOrArray, fieldName string, values []interfac
 			if !ok {
 				return nil, fmt.Errorf("expected a string but got %+v for the %d value for %q", raw, i, constExtension.name)
 			}
+			if name := constExtension.findName(value); name != "" {
+				keysAndValues[name] = value
+				continue
+			}
 			// Some numbers are modelled as strings
 			if numVal, err := strconv.ParseFloat(value, 64); err == nil {
 				if strings.Contains(value, ".") {
@@ -97,6 +120,10 @@ func MapConstant(typeVal spec.StringOrArray, fieldName string, values []interfac
 
 			key := keyValueForInteger(int64(value))
 			val := fmt.Sprintf("%d", int64(value))
+			if name := constExtension.findName(val); name != "" {
+				keysAndValues[name] = val
+				continue
+			}
 			normalizedName := normalizeConstantKey(key)
 			keysAndValues[normalizedName] = val
 			continue
@@ -145,6 +172,7 @@ func parseConstantExtensionFromExtension(field spec.Extensions) (*constantExtens
 	}
 
 	var enumName *string
+	var values []constantExtensionValue
 	for k, v := range enumDetails {
 		// presume inconsistencies in the data
 		if strings.EqualFold(k, "name") {
@@ -156,13 +184,37 @@ func parseConstantExtensionFromExtension(field spec.Extensions) (*constantExtens
 		// this should be output as a fixed set of values (e.g. a constant) or an extendable
 		// list of strings (e.g. a set of possible string values with other values possible)
 		// however we're not concerned with the difference - so we ignore this.
+
+		if strings.EqualFold(k, "values") {
+			for _, rawValue := range v.([]interface{}) {
+				valueDetail, ok := rawValue.(map[string]interface{})
+				if !ok {
+					return nil, fmt.Errorf("enum value wasn't a map[string]interface{}")
+				}
+
+				var item constantExtensionValue
+				for k, v := range valueDetail {
+					if strings.EqualFold(k, "name") {
+						item.name = v.(string)
+					}
+					if strings.EqualFold(k, "value") {
+						item.value = v.(string)
+					}
+					if strings.EqualFold(k, "description") {
+						item.description = v.(string)
+					}
+				}
+				values = append(values, item)
+			}
+		}
 	}
 	if enumName == nil {
 		return nil, fmt.Errorf("enum details are missing a `name`")
 	}
 
 	return &constantExtension{
-		name: *enumName,
+		name:   *enumName,
+		values: values,
 	}, nil
 }
 
