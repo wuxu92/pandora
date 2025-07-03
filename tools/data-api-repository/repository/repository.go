@@ -28,6 +28,9 @@ func NewRepository(workingDirectory string, sourceDataType sdkModels.SourceDataT
 		return nil, fmt.Errorf("building the cache: %+v", err)
 	}
 
+	// cache all service after initialization
+	go repo.GetAllServices()
+
 	return repo, nil
 }
 

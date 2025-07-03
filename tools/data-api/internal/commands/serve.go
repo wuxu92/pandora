@@ -46,7 +46,10 @@ func (c ServeCommand) Run(inputArgs []string) int {
 	r.Use(middleware.Logger)
 	r.Route("/", endpoints.Router(args.DataDirectory, args.ServiceNames))
 	logging.Infof("Data API launched at http://localhost:%d", args.Port)
-	http.ListenAndServe(fmt.Sprintf(":%d", args.Port), r)
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", args.Port), r); err != nil {
+		logging.Errorf("Failed to start server: %v", err)
+		return 1
+	}
 	return 0
 }
 
