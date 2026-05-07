@@ -84,7 +84,8 @@ replace github.com/hashicorp/pandora/tools/data-api-sdk => ../data-api-sdk
 
 replace github.com/hashicorp/pandora/tools/sdk => ../sdk
 
-replace github.com/go-openapi/analysis v0.20.1 => github.com/jackofallops/analysis v0.20.2-0.20210705135157-888aa8dbc8e5
+// replace github.com/go-openapi/analysis v0.20.1 => github.com/jackofallops/analysis v0.20.2-0.20210705135157-888aa8dbc8e5
+replace github.com/go-openapi/analysis v0.20.1 => /home/xuwu/azure/analysis
 
 replace github.com/go-openapi/jsonreference v0.19.5 => github.com/stephybun/jsonreference v0.21.1-0.20241001092726-f8a8f352cb85
 
